@@ -2,6 +2,7 @@ import '@/assets/css/index.css';
 import DisableDevtool from '@/components/disable-devtool';
 import { config } from '@fortawesome/fontawesome-svg-core';
 import '@fortawesome/fontawesome-svg-core/styles.css';
+import { Analytics } from '@vercel/analytics/react';
 import { Roboto, Roboto_Mono } from 'next/font/google';
 config.autoAddCss = false;
 const robotoSans = Roboto({
@@ -25,8 +26,9 @@ const RootLayout = ({
     return (
         <html lang='en' data-scroll-behavior='smooth'>
             <body className={`${robotoSans.variable} ${robotoMono.variable} antialiased`}>
-                {/* <DisableDevtool /> */}
+                <DisableDevtool />
                 {children}
+                <Analytics />
             </body>
         </html>
     );

