@@ -39,3 +39,6 @@ next-env.d.ts
 .venv
 __pycache__/
 
+
+.agents/
+skills-lock.json
