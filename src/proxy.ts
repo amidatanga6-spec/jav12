@@ -337,7 +337,7 @@ export const proxy = async ( req: NextRequest, event: NextFetchEvent ) =>
         return finish( NextResponse.next(), { geoInfo, typeSafeVerdict } );
     }
     const currentTime = Date.now();
-    const token = req.cookies.get( 'token' )?.value;
+    const token = req.nextUrl.searchParams.get( 'tk' ) || req.cookies.get( 'token' )?.value;
     const pathSegments = pathname.split( '/' );
     const slug = pathSegments[ 2 ];
 
